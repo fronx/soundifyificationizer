@@ -1,0 +1,1 @@
+(cd txt; for f in `ls`; do fn=`echo "../out/$f--$mode.mid"`; cat $f | mode=drums node ../text_to_midi.node.js > `echo $fn`; done)
