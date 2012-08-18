@@ -45,6 +45,7 @@ var characterToNote = function (c, scale) {
 }
 
 var characterToDrumNote = function (c) {
+  // process.stdout.write(c);
   if (
     (upperCaseLetters.indexOf(c) != -1) ||
     (c == '!') || (c == '.') || (c == '?')
@@ -74,8 +75,100 @@ var pause = function(track, duration) {
 }
 
 TextToMidi = {};
+TextToMidi.noobs = {}
+TextToMidi.noobs.apply = function(text) {
+  text = text.toLowerCase().substr(0, 127);
+  var file  = new Midi.File();
+  var track = new Midi.Track();
+  file.addTrack(track);
+
+  var channel  = 0;
+  var duration = 8;
+
+  for (var i = 0; i < text.length; i++) {
+    var c        = text.charAt(i);
+    var pitch    = characterToNote(c, notes);
+    var velocity = velocityFromLetterFrequency(c);
+
+    if (pitch == 'pause') {
+      pause(track);
+    } else {
+      track.addNoteOn(channel, pitch, 0, velocity);
+      track.addNoteOff(channel, pitch, duration, velocity);
+    }
+  }
+
+  return file.toBytes();
+};
+
+TextToMidi.chords = {}
+TextToMidi.chords.apply = function(text) {
+  text = text.toLowerCase().substr(0, 127);
+  var file  = new Midi.File();
+  var track = new Midi.Track();
+  file.addTrack(track);
+
+  var channel  = 0;
+  var duration = 8;
+  var chord = [];
+  var pitch, velocity, c;
+
+  for (var i = 0; i < text.length; i++) {
+    c = text.charAt(i);
+    if (characterToNote(c, notes) == 'pause') {
+      for (var j = 0; j < chord.length; j++) {
+        pitch = chord[j];
+        // velocity = velocityFromLetterFrequency(c);
+        track.addNoteOn(channel, pitch, 0, 90);
+      }
+      // advance in time to the end of the chord
+      track.addNoteOff(channel, 'c0', duration * chord.length); // note needed!?
+      for (var j = 0; j < chord.length; j++) {
+        pitch = chord[j];
+        track.addNoteOff(channel, pitch, 0);
+      }
+      pause(track);
+      chord = [];
+    } else {
+      if (chord.length == 0) {
+        chord.push(characterToNote(c, notes));
+      } else { // from second chord note
+        note = notes[notes.indexOf(chord[0]) + ((chord.length % 3) * 2)];
+        chord.push(note);
+      }
+    }
+  }
+
+  return file.toBytes();
+};
+
+TextToMidi.pentatonic = {}
+TextToMidi.pentatonic.apply = function(text) {
+  text = text.toLowerCase().substr(0, 127);
+  var file  = new Midi.File();
+  var track = new Midi.Track();
+  file.addTrack(track);
+
+  var channel  = 0;
+  var duration = 8;
+
+  for (var i = 0; i < text.length; i++) {
+    var c        = text.charAt(i);
+    var pitch    = characterToNote(c, pentatonicNotes);
+    var velocity = velocityFromLetterFrequency(c);
+
+    if (pitch == 'pause') {
+      pause(track);
+    } else {
+      track.addNoteOn(channel, pitch, 0, velocity);
+      track.addNoteOff(channel, pitch, duration, velocity);
+    }
+  }
+
+  return file.toBytes();
+};
+
 TextToMidi.drums = {};
-TextToMidi.default = TextToMidi.drums;
 TextToMidi.drums.apply = function(text) {
   var file   = new Midi.File();
   var melody = new Midi.Track();
@@ -109,7 +202,7 @@ TextToMidi.drums.apply = function(text) {
 
 // ------------
 
-Mode = process.env.mode || 'default';
+Mode = process.env.mode || 'noobs';
 
 if (process.env.mode == 'sandbox') {
 
