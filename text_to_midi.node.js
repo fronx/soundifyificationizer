@@ -30,6 +30,24 @@ TextUtils.isPunctuation = function (c) {
 TextUtils.characterIndex = function (c) {
   return TextUtils.lowerCaseLetters.indexOf(c.toLowerCase());
 }
+TextUtils.tokenize = function (text) {
+  return text.split('').map(function(c) {
+    return {
+      character:      c,
+      characterIndex: TextUtils.characterIndex(c),
+      frequencyIndex: TextUtils.lettersByFrequency.indexOf(c),
+      isLetter:       TextUtils.isLetter(c),
+      isLowerCase:    TextUtils.isLowerCase(c),
+      isUpperCase:    TextUtils.isUpperCase(c),
+      isVowel:        TextUtils.isVowel(c),
+      isConsonant:    TextUtils.isLetter(c) && !TextUtils.isVowel(c),
+      isPunctuation:  TextUtils.isPunctuation(c),
+      isTag:          c == '#',
+      isMention:      c == '@',
+      isWhitespace:   c == ' ',
+    };
+  });
+}
 
 
 Music = {}
@@ -60,25 +78,6 @@ Music.drumNotes = {
   ride:    51,
   highTom: 48
 };
-
-Lexer = {}
-Lexer.getTokens = function (text) {
-  return text.split('').map(function(c) {
-    return {
-      character:      c,
-      characterIndex: TextUtils.characterIndex(c),
-      isLetter:       TextUtils.isLetter(c),
-      isLowerCase:    TextUtils.isLowerCase(c),
-      isUpperCase:    TextUtils.isUpperCase(c),
-      isVowel:        TextUtils.isVowel(c),
-      isConsonant:    TextUtils.isLetter(c) && !TextUtils.isVowel(c),
-      isPunctuation:  TextUtils.isPunctuation(c),
-      isTag:          c == '#',
-      isMention:      c == '@',
-      isWhitespace:   c == ' ',
-    };
-  });
-}
 
 var maxLength = function(arrays) {
   var max = 0;
@@ -149,9 +148,8 @@ TextToMidi.drums.apply = function(text) {
     drums:  [],
     melody: [],
   };
-  var defaultLength = 16;
   var time = 0;
-  Lexer.getTokens(text).forEach(function(token) {
+  TextUtils.tokenize(text).forEach(function(token) {
     if (token.isWhitespace) {
       time += 64;
     } else {
@@ -160,8 +158,8 @@ TextToMidi.drums.apply = function(text) {
           time,
           tracks.drums,
           Music.drumNotes.kick,
-          defaultLength,
-          20 + TextUtils.lettersByFrequency.indexOf(token.character) * 5
+          4,
+          20 + token.frequencyIndex * 5
         )
       };
       if (token.isVowel) {
@@ -177,25 +175,25 @@ TextToMidi.drums.apply = function(text) {
               u: 'highTom'
             }[token.character.toLowerCase()]
           ],
-          defaultLength,
-          20 + TextUtils.lettersByFrequency.indexOf(token.character) * 5
+          4,
+          20 + token.frequencyIndex * 5
+        );
+
+        TextToMidi.addNote(
+          time,
+          tracks.melody,
+          Music.pentatonicNotes[token.characterIndex],
+          64,
+          20 + token.frequencyIndex * 3
         );
       };
       if (token.isConsonant) {
         TextToMidi.addNote(
           time + 4,
           tracks.melody,
-          Music.notes[token.characterIndex],
-          defaultLength / 2,
-          20 + TextUtils.lettersByFrequency.indexOf(token.character) * 3
-        )
-      } else if (token.isLetter) {
-        TextToMidi.addNote(
-          time,
-          tracks.melody,
           Music.pentatonicNotes[token.characterIndex],
-          defaultLength,
-          20 + TextUtils.lettersByFrequency.indexOf(token.character) * 3
+          1,
+          20 + token.frequencyIndex * 3
         )
       };
       // advance global time for every letter
