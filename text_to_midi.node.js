@@ -48,7 +48,10 @@ Music.pentatonicNotes = [
   'c4', 'd4', 'e4', 'g4', 'a4',
   'c5', 'd5', 'e5', 'g5', 'a5',
   'c6', 'd6', 'e6', 'g6', 'a6',
-]
+];
+Music.nonPentatonicNotes = [
+  'f1', 'f2', 'f3', 'f4', 'f5', 'f6',
+];
 Music.drumNotes = {
   kick:    35,
   snare:   38,
@@ -68,6 +71,7 @@ Lexer.getTokens = function (text) {
       isLowerCase:    TextUtils.isLowerCase(c),
       isUpperCase:    TextUtils.isUpperCase(c),
       isVowel:        TextUtils.isVowel(c),
+      isConsonant:    TextUtils.isLetter(c) && !TextUtils.isVowel(c),
       isPunctuation:  TextUtils.isPunctuation(c),
       isTag:          c == '#',
       isMention:      c == '@',
@@ -86,17 +90,30 @@ var maxLength = function(arrays) {
   return max;
 };
 
+var debug = function (x) {
+  if (process.env.debug == '1') {
+    process.stdout.write(x);
+  }
+};
+
 TextToMidi = {};
+TextToMidi.initTime = function (time, track) {
+  if (track[time] == undefined) {
+    track[time] = [];
+  };
+};
 TextToMidi.addNote = function(time, track, pitch, duration, velocity) {
-  track[time] = {
+  TextToMidi.initTime(time, track);
+  track[time].push({
     on:       true,
     pitch:    pitch,
     velocity: velocity,
-  };
-  track[time + duration] = {
+  });
+  TextToMidi.initTime(time + duration, track);
+  track[time + duration].push({
     on:       false,
     pitch:    pitch,
-  };
+  });
 };
 
 TextToMidi.toMidi = function (tracks) {
@@ -107,24 +124,21 @@ TextToMidi.toMidi = function (tracks) {
   });
   maxTime = maxLength(tracks);
   for (midiTime = 0; midiTime < maxTime; midiTime += 1) {
-    var anyNote = false;
     tracks.forEach(function(track, trackIndex) {
-      var note = track[midiTime];
-      if (note != undefined) {
-        if (note.on) {
-          track.midiTrack.addNoteOn(0, note.pitch, 0, note.velocity);
-        } else {
-          track.midiTrack.addNoteOff(0, note.pitch);
-        }
-        anyNote = true;
-      }
+      if (track[midiTime]) {
+        track[midiTime].forEach(function (note) {
+          if (note.on) {
+            track.midiTrack.addNoteOn(0, note.pitch, 0, note.velocity);
+          } else {
+            track.midiTrack.addNoteOff(0, note.pitch);
+          };
+        });
+      };
     });
-    if (anyNote == false) {
-      // advance in time by one
-      tracks.forEach(function(track, trackIndex) {
-        track.midiTrack.addNoteOff(0, 'c0', 1);
-      });
-    }
+    // advance in time by one
+    tracks.forEach(function(track, trackIndex) {
+      track.midiTrack.addNoteOff(0, 1, 1);
+    });
   };
   return file.toBytes();
 };
@@ -135,6 +149,7 @@ TextToMidi.drums.apply = function(text) {
     drums:  [],
     melody: [],
   };
+  var defaultLength = 16;
   var time = 0;
   Lexer.getTokens(text).forEach(function(token) {
     if (token.isWhitespace) {
@@ -145,7 +160,7 @@ TextToMidi.drums.apply = function(text) {
           time,
           tracks.drums,
           Music.drumNotes.kick,
-          4,
+          defaultLength,
           20 + TextUtils.lettersByFrequency.indexOf(token.character) * 5
         )
       };
@@ -162,21 +177,29 @@ TextToMidi.drums.apply = function(text) {
               u: 'highTom'
             }[token.character.toLowerCase()]
           ],
-          4,
+          defaultLength,
           20 + TextUtils.lettersByFrequency.indexOf(token.character) * 5
         );
       };
-      if (token.isLetter) {
+      if (token.isConsonant) {
+        TextToMidi.addNote(
+          time + 4,
+          tracks.melody,
+          Music.notes[token.characterIndex],
+          defaultLength / 2,
+          20 + TextUtils.lettersByFrequency.indexOf(token.character) * 3
+        )
+      } else if (token.isLetter) {
         TextToMidi.addNote(
           time,
           tracks.melody,
           Music.pentatonicNotes[token.characterIndex],
-          4,
+          defaultLength,
           20 + TextUtils.lettersByFrequency.indexOf(token.character) * 3
         )
       };
-      // advance global time
-      time += 4;
+      // advance global time for every letter
+      // time += 1; // don't want that.
     };
   });
   var indexedTracks = [];
@@ -194,8 +217,8 @@ process.stdin.resume();
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', function(text) {
   var tracks = TextToMidi[Mode].apply(text);
-  process.stdout.write(JSON.stringify(tracks));
-  // process.stdout.write(
-  //   TextToMidi.toMidi(tracks), 'binary'
-  // );
+  debug(JSON.stringify(tracks));
+  process.stdout.write(
+    TextToMidi.toMidi(tracks), 'binary'
+  );
 });
