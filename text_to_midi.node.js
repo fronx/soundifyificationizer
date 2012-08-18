@@ -1,4 +1,3 @@
-var fs   = require('fs');
 var Midi = require('jsmidgen');
 
 TextUtils = {}
@@ -48,7 +47,6 @@ TextUtils.tokenize = function (text) {
     };
   });
 }
-
 
 Music = {}
 Music.notes = [
@@ -158,7 +156,7 @@ TextToMidi.drums.apply = function(text) {
           time,
           tracks.drums,
           Music.drumNotes.kick,
-          4,
+          16,
           20 + token.frequencyIndex * 5
         )
       };
@@ -175,7 +173,7 @@ TextToMidi.drums.apply = function(text) {
               u: 'highTom'
             }[token.character.toLowerCase()]
           ],
-          4,
+          16,
           20 + token.frequencyIndex * 5
         );
 
@@ -192,7 +190,7 @@ TextToMidi.drums.apply = function(text) {
           time + 4,
           tracks.melody,
           Music.pentatonicNotes[token.characterIndex],
-          1,
+          2,
           20 + token.frequencyIndex * 3
         )
       };
